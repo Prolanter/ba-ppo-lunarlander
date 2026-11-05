@@ -1,0 +1,5 @@
+torch>=2.2
+gymnasium[box2d]>=1.0
+numpy
+matplotlib
+pandas
