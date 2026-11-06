@@ -9,7 +9,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
-METHODS = ["ppo", "grpo", "hybrid"]
+METHODS = ["ppo", "grpo", "bappo"]
 
 
 def main():
@@ -19,18 +19,25 @@ def main():
     p.add_argument("--seeds", type=int, default=5)
     p.add_argument("--workers", type=int, default=8)
     p.add_argument("--out", default="results")
+    p.add_argument("--progress_dir", default="progress")
+    p.add_argument("--minibatch", type=int, default=512)
+    p.add_argument("--methods", default="ppo,grpo,bappo", help="comma-separated subset")
     args = p.parse_args()
+    methods = args.methods.split(",")
 
     os.makedirs("logs", exist_ok=True)
     jobs = []
     for seed in range(args.seeds):
-        for method in METHODS:
+        for method in methods:
             result = os.path.join(args.out, f"{args.env}_{method}_s{seed}.json")
             if os.path.exists(result):
                 continue
             cmd = [sys.executable, "ppo_grpo.py", "--env", args.env, "--method", method,
-                   "--seed", str(seed), "--total_steps", str(args.total_steps), "--out", args.out]
-            jobs.append((cmd, f"logs/{args.env}_{method}_s{seed}.txt"))
+                   "--seed", str(seed), "--total_steps", str(args.total_steps),
+                   "--minibatch", str(args.minibatch), "--out", args.out,
+                   "--progress_dir", args.progress_dir]
+            tag = f"{args.minibatch}_" if args.minibatch != 512 else ""
+            jobs.append((cmd, f"logs/{tag}{args.env}_{method}_s{seed}.txt"))
 
     print(f"{len(jobs)} runs to do", flush=True)
 

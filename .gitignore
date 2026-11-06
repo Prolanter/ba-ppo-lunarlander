@@ -3,3 +3,7 @@ __pycache__/
 logs/
 *.pt
 .venv/
+runs/
+progress*/
+demo/
+__pycache__/

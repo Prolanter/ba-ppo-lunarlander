@@ -14,8 +14,9 @@ import numpy as np
 
 env = sys.argv[1] if len(sys.argv) > 1 else "LunarLander-v3"
 solved = float(sys.argv[2]) if len(sys.argv) > 2 else 200.0
-METHODS = [("ppo", "PPO"), ("grpo", "GRPO"), ("hybrid", "Hybrid (ours)")]
-COLORS = {"ppo": "#534AB7", "grpo": "#888780", "hybrid": "#0F6E56"}
+RES_DIR = sys.argv[3] if len(sys.argv) > 3 else "results"
+METHODS = [("ppo", "PPO"), ("grpo", "GRPO"), ("bappo", "BA-PPO")]
+COLORS = {"ppo": "#534AB7", "grpo": "#888780", "bappo": "#0F6E56"}
 
 
 def moving_avg(x, w=100):
@@ -30,7 +31,7 @@ def moving_avg(x, w=100):
 
 def load(method):
     runs = []
-    for f in sorted(glob.glob(os.path.join("results", f"{env}_{method}_s*.json"))):
+    for f in sorted(glob.glob(os.path.join(RES_DIR, f"{env}_{method}_s*.json"))):
         with open(f) as fh:
             runs.append(json.load(fh))
     return runs
@@ -83,11 +84,11 @@ def main():
     ax.legend()
     ax.grid(alpha=0.3)
     fig.tight_layout()
-    fig.savefig(f"learning_curves_{env}.png", dpi=150)
+    fig.savefig(f"learning_curves_{env}_{RES_DIR}.png", dpi=150)
 
     table = ["| Method | Final return (mean ± std) | Steps to reach solved | Wall time (min) |",
              "|---|---|---|---|"] + rows
-    with open(f"results_{env}.md", "w") as f:
+    with open(f"results_{env}_{RES_DIR}.md", "w") as f:
         f.write("\n".join(table) + "\n")
     print("\n".join(table))
 
