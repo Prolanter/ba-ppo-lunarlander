@@ -84,9 +84,26 @@ All three methods share one network design. The actor and the critic each have t
 \label{fig:architecture}
 \end{figure}
 
+\paragraph{What is a method and what is a model.} The three methods are training recipes. Each one produces the same kind of trained object, a policy network that maps a state to a probability for each action. That network is the model we finally test. A recipe combines a few ingredients: the policy network, possibly a critic network that predicts state values, a formula that scores each action, and an update rule. Table~\ref{tab:methods} lists the ingredients of each method. The formulas themselves are not models. GAE and the group score are calculations that turn rewards into advantage values, and the critic is the only learned predictor besides the policy.
+
+\begin{table}[t]
+\centering
+\caption{The ingredients of the three methods. The update rule is the same clipped objective in all three cases \cite{schulman2017ppo}.}
+\label{tab:methods}
+\begin{tabular}{@{}lccl@{}}
+\toprule
+Method & Critic network & Episodes per start state & Advantage formula \\
+\midrule
+PPO \cite{schulman2017ppo} & yes & 1 & GAE \cite{schulman2016gae} \\
+GRPO \cite{shao2024deepseekmath} & no & 8 & group score (Eq.~\ref{eq:grpo}) \\
+BA-PPO (this work) & yes & 8 & blend of group score and GAE (Eq.~\ref{eq:bappo}) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Proximal Policy Optimization}
 
-Let $r_t(\theta) = \pi_\theta(a_t \mid s_t) / \pi_{\theta_{\text{old}}}(a_t \mid s_t)$ be the probability ratio between the new and old policies. PPO maximizes
+PPO \cite{schulman2017ppo} is the baseline recipe. It trains a policy and a critic together and uses GAE \cite{schulman2016gae} for the advantages. Let $r_t(\theta) = \pi_\theta(a_t \mid s_t) / \pi_{\theta_{\text{old}}}(a_t \mid s_t)$ be the probability ratio between the new and old policies. PPO maximizes
 \begin{equation}
 L^{\text{clip}}(\theta) = \mathbb{E}_t\left[\min\left(r_t(\theta)\hat{A}_t,\; \text{clip}\left(r_t(\theta), 1-\epsilon, 1+\epsilon\right)\hat{A}_t\right)\right],
 \label{eq:ppo}
@@ -100,7 +117,7 @@ with $\gamma = 0.99$ and $\lambda = 0.95$. The critic is fitted by regression on
 
 \subsection{Group Relative Policy Optimization}
 
-GRPO \cite{shao2024deepseekmath} uses a group baseline in place of a critic. For one start state we run $G$ episodes under the same initial conditions. Let $R_i$ be the total reward of episode $i$. Its group score is
+GRPO is the group recipe introduced by Shao et al.\ \cite{shao2024deepseekmath}. It uses a group baseline in place of a critic. For one start state we run $G$ episodes under the same initial conditions. Let $R_i$ be the total reward of episode $i$. Its group score is
 \begin{equation}
 \hat{A}^{\text{GRPO}}_i = \frac{R_i - \mathrm{mean}(R_1,\dots,R_G)}{\mathrm{std}(R_1,\dots,R_G) + 10^{-8}},
 \label{eq:grpo}
