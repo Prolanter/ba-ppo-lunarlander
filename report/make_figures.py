@@ -236,7 +236,49 @@ def fig_ablation():
     save(fig, "fig_ablation_alpha")
 
 
+def fig_environment():
+    """Frames from the saved BA-PPO agent: start, mid-flight and touchdown."""
+    import gymnasium as gym
+    import torch
+    import torch.nn as nn
+    from torch.distributions import Categorical
+
+    ck = torch.load(path("checkpoints", "bappo_s2.pt"), weights_only=False)
+    pi = nn.Sequential(nn.Linear(ck["obs_dim"], 64), nn.Tanh(),
+                       nn.Linear(64, 64), nn.Tanh(), nn.Linear(64, ck["n_actions"]))
+    pi.load_state_dict(ck["pi"])
+    env = gym.make("LunarLander-v3", render_mode="rgb_array")
+    torch.manual_seed(3)
+    obs, _ = env.reset(seed=3)
+    frames, states, done, t = [], [], False, 0
+    while not done:
+        frames.append(env.render())
+        states.append(obs.copy())
+        with torch.no_grad():
+            a = int(Categorical(logits=pi(torch.as_tensor(obs, dtype=torch.float32))).sample())
+        obs, r, term, trunc, _ = env.step(a)
+        done = term or trunc
+        t += 1
+    frames.append(env.render())
+    states.append(obs.copy())
+    env.close()
+    idx = [0, len(frames) // 2, len(frames) - 1]
+    titles = ["Start: lander at the top", "Mid-flight", "Touchdown"]
+    fig, axes = plt.subplots(1, 3, figsize=(10.5, 4.2))
+    for ax, i, title in zip(axes, idx, titles):
+        ax.imshow(frames[i])
+        ax.set_title(f"{title}\nstep {i}", fontsize=10.5)
+        ax.axis("off")
+    fig.text(0.5, 0.01,
+             "State vector (x, y, vx, vy, angle, angular velocity, left leg, right leg) at touchdown: "
+             + ", ".join(f"{v:.2f}" for v in states[-1]),
+             ha="center", fontsize=8.5, color="#5F5E5A")
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    save(fig, "fig_environment")
+
+
 if __name__ == "__main__":
+    fig_environment()
     fig_architecture()
     fig_comparison("results_2M", 512)
     fig_comparison("results_mb64", 64)

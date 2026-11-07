@@ -193,6 +193,15 @@ File & Role \\
 
 No external dataset is used. The data are the interactions between the agent and the simulator, which is LunarLander-v3 from Gymnasium \cite{towers2024gymnasium,brockman2016gym}. The simulator takes a seed, so every run can be reproduced exactly. CartPole-v1 was used only to check that the code runs, and none of its results are reported.
 
+Figure~\ref{fig:env} shows the task. The frames come from a saved BA-PPO agent (seed 2, minibatch 512) trained for 500,000 steps in an early demonstration run. This agent is not one of the 2-million-step results in the tables. The lander starts at the top of the screen with a random push, and it has to slow down and touch down between the flags. The state vector at touchdown is printed under the figure, so each of the eight numbers can be matched to the picture.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig_environment.pdf}
+\caption{The LunarLander-v3 task, shown with frames from a saved BA-PPO agent: the start, mid-flight, and touchdown. The text under the figure gives the eight state values at touchdown.}
+\label{fig:env}
+\end{figure}
+
 \section{Experimental Design}
 \label{sec:design}
 
@@ -263,16 +272,20 @@ Learning curves for each minibatch size are in Figures~\ref{fig:lc512} and \ref{
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.85\linewidth]{figures/fig_learning_curves_mb512.pdf}
-\caption{Learning curves at minibatch 512 (mean $\pm$ 1 standard deviation over five seeds).}
-\label{fig:lc512}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.85\linewidth]{figures/fig_learning_curves_mb64.pdf}
-\caption{Learning curves at minibatch 64 (mean $\pm$ 1 standard deviation over five seeds).}
-\label{fig:lc64}
+\begin{minipage}[t]{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig_learning_curves_mb512.pdf}
+  \subcaption{Minibatch 512.}
+  \label{fig:lc512}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig_learning_curves_mb64.pdf}
+  \subcaption{Minibatch 64.}
+  \label{fig:lc64}
+\end{minipage}
+\caption{Learning curves for the two minibatch sizes, side by side. Each line is the mean over five test seeds, and the shaded band is one standard deviation.}
+\label{fig:lc}
 \end{figure}
 
 \subsection{Significance tests}
@@ -332,12 +345,12 @@ The ablation asks how much each signal contributes. We varied $\alpha$ at miniba
 \toprule
 Blend weight $\alpha$ & Meaning & Mean return [seeds] \\
 \midrule
-0 & critic (GAE) only, group sampling & \todo{to fill} \\
-0.25 & mostly critic & 186 [253, 118] \\
+0 & critic (GAE) only, group sampling & 137 [116, 158] \\
+0.25 & mostly critic & 185 [253, 118] \\
 0.5 & equal blend (our choice) & \textbf{271} [276, 265] \\
 0.75 & mostly group & 205 [262, 148] \\
-0.9 & almost only group & \todo{to fill} \\
-1.0 & group only, group sampling & \todo{to fill} \\
+0.9 & almost only group & 210 [247, 174] \\
+1.0 & group only, group sampling & 61 [61, 60] \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -349,9 +362,9 @@ Blend weight $\alpha$ & Meaning & Mean return [seeds] \\
 \label{fig:ablation}
 \end{figure}
 
-\todo{Write the reading of the ablation after the runs finish: whether the curve peaks at 0.5, how steep the drop is on each side, and what $\alpha = 0$ and $\alpha = 1$ show about the two signals on their own.}
+The curve peaks at the equal blend, $\alpha = 0.5$, where the mean is 271. Moving the weight in either direction lowers the score, though the drop is not symmetric. Going to $\alpha = 0.25$ costs about 85 points, and going to $\alpha = 1$ costs about 210. Two results stand out. First, the group term alone ($\alpha = 1$) is the weakest setting, at 61, so the group score cannot replace the critic. Second, the critic term alone with group sampling ($\alpha = 0$) reaches only 137. That is far below single-episode PPO on the same seeds, which scored 251. So the group sampling by itself hurts the critic-based update, and the gain of BA-PPO does not come from sampling alone. The blend is what makes the difference.
 
-The ablation supports the equal blend as the best of the values tested, but it also has a clear limit. It uses two tuning seeds, so the shape of the curve is only a rough guide.
+The ablation has a clear limit: it uses two tuning seeds, so the exact shape of the curve is only a rough guide. The values at $\alpha = 0.75$ and $\alpha = 0.9$ are close enough that their order could change with more seeds.
 
 \section{Discussion}
 \label{sec:discussion}
