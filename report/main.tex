@@ -26,7 +26,7 @@ Group Relative Policy Optimization (GRPO) removes the value network used by Prox
 \section{Introduction}
 \label{sec:intro}
 
-Reinforcement learning (RL) trains an agent to choose actions that maximize long-term reward. Policy gradient methods, such as PPO \cite{schulman2017ppo}, are widely used because they are stable and simple to apply. PPO estimates how good each action was using a learned value function (the critic) and generalized advantage estimation (GAE) \cite{schulman2016gae}. The critic must learn to predict returns, and when it is inaccurate, the advantage estimates become noisy.
+Reinforcement learning (RL) trains an agent to choose actions that maximize long-term reward \cite{sutton2018rl}. Policy gradient methods, such as PPO \cite{schulman2017ppo}, are widely used because they are stable and simple to apply. PPO estimates how good each action was using a learned value function (the critic) and generalized advantage estimation (GAE) \cite{schulman2016gae}. The critic must learn to predict returns, and when it is inaccurate, the advantage estimates become noisy.
 
 GRPO was introduced in the DeepSeekMath work \cite{shao2024deepseekmath} and is the core training method behind DeepSeek-R1 \cite{deepseekai2025r1}. GRPO does not use a critic. For each start state it samples a group of responses, and it scores each response relative to the group mean. The main drawback for control tasks is that the same score is applied to every step of an episode, so the agent cannot tell which of its actions helped.
 
