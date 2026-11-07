@@ -26,6 +26,8 @@ SETTINGS = {
     # Blend-weight test for BA-PPO, at the best minibatch setting (64).
     "alpha25": ["--minibatch", "64", "--alpha", "0.25"],
     "alpha75": ["--minibatch", "64", "--alpha", "0.75"],
+    "alpha90": ["--minibatch", "64", "--alpha", "0.9"],
+    "alpha100": ["--minibatch", "64", "--alpha", "1.0"],
 }
 TUNE_SEEDS = [100, 101]
 TEST_SEEDS = [0, 1, 2, 3, 4]
