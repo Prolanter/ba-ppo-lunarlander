@@ -23,6 +23,9 @@ SETTINGS = {
     "mb512": [],
     "mb64": ["--minibatch", "64"],
     "gamma999": ["--gamma", "0.999", "--lam", "0.98"],
+    # Blend-weight test for BA-PPO, at the best minibatch setting (64).
+    "alpha25": ["--minibatch", "64", "--alpha", "0.25"],
+    "alpha75": ["--minibatch", "64", "--alpha", "0.75"],
 }
 TUNE_SEEDS = [100, 101]
 TEST_SEEDS = [0, 1, 2, 3, 4]
@@ -39,6 +42,8 @@ def job_cmd(method, setting, seed, out_root, progress_root, total_steps):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--methods", default="ppo,grpo,bappo")
+    p.add_argument("--settings", default=",".join(SETTINGS),
+                   help="comma-separated subset of settings to run")
     p.add_argument("--final", nargs=2, metavar=("METHOD", "SETTING"),
                    help="run one chosen setting on seeds 0-4")
     p.add_argument("--total_steps", type=int, default=2_000_000)
@@ -55,7 +60,7 @@ def main():
             jobs.append((cmd, f"logs/final_{method}_{setting}_s{seed}.txt"))
     else:
         for method in args.methods.split(","):
-            for setting in SETTINGS:
+            for setting in args.settings.split(","):
                 for seed in TUNE_SEEDS:
                     cmd = job_cmd(method, setting, seed, "results_tune", "progress_tune",
                                   args.total_steps)
