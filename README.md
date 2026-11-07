@@ -32,7 +32,7 @@ Charts and tables:
 
 - Only 5 test seeds, so the differences between the top two methods at minibatch 64 are not conclusive.
 - Only the minibatch size was tuned per method. Learning rate, clipping, epochs and entropy weight were fixed for all three.
-- BA-PPO's blend weight α was fixed at 0.5 and not tuned.
+- BA-PPO's blend weight α was tested at 0.25, 0.5 and 0.75 on separate tuning seeds (100 and 101). α = 0.5 gave the best and most consistent results, so it was used for all reported runs. Only two tuning seeds were used, so this check is limited.
 - GRPO has no critic, so the planning-horizon setting (gamma 0.999) has no effect on it. Its results match the minibatch-512 runs exactly. That setting was run for GRPO by mistake and is excluded from the comparison.
 - Scores are training-episode returns, so they include the agent's random exploration.
 
@@ -75,6 +75,12 @@ Repeat the tuning on seeds 100 and 101:
 
 ```bash
 python tune.py --methods ppo,grpo,bappo
+```
+
+Repeat the blend-weight test (BA-PPO with α = 0.25 and 0.75, at minibatch 64):
+
+```bash
+python tune.py --methods bappo --settings alpha25,alpha75
 ```
 
 Run one setting directly:
