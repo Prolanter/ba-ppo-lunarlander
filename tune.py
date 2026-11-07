@@ -24,6 +24,7 @@ SETTINGS = {
     "mb64": ["--minibatch", "64"],
     "gamma999": ["--gamma", "0.999", "--lam", "0.98"],
     # Blend-weight test for BA-PPO, at the best minibatch setting (64).
+    "alpha0": ["--minibatch", "64", "--alpha", "0.0"],   # group sampling, GAE advantage only
     "alpha25": ["--minibatch", "64", "--alpha", "0.25"],
     "alpha75": ["--minibatch", "64", "--alpha", "0.75"],
     "alpha90": ["--minibatch", "64", "--alpha", "0.9"],
