@@ -5,27 +5,29 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{hyperref}
-\usepackage{xcolor}
 \usepackage{setspace}
 \usepackage{caption}
 \onespacing
 \captionsetup{font=small,labelfont=bf}
-
 \hypersetup{colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue}
 
-\newcommand{\todo}[1]{\textcolor{red}{[#1]}}
+\title{BA-PPO: Blending a Group-Relative Signal into Proximal Policy Optimization for Lunar Lander Control}
 
-\title{BA-PPO: Mixing a Group-Relative Signal into Proximal Policy Optimization for Lunar Lander Control}
-
-\author{[Student name] \\ [Student ID] \\ [Major] \\ [School / Department / Institute]}
-\date{[Month X, Day X, 2026]}
+\author{
+  Mustafa \\
+  Student ID: I20231305 \\
+  Major: Computer Science and Technology \\
+  Department of Computer Science and Technology \\
+  Huazhong University of Science and Technology (HUST)
+}
+\date{November 8, 2026}
 
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
-Proximal Policy Optimization (PPO) judges each action with a learned critic. Group Relative Policy Optimization (GRPO) drops the critic and compares each episode with other episodes that begin from the same state. That comparison is cheap and unbiased at the episode level, but it gives every step of an episode the same credit, which is a problem on long tasks. We propose Blended Advantage PPO (BA-PPO), which mixes the GRPO group score with PPO's critic-based advantage using an equal weight. We compare PPO, GRPO and BA-PPO on LunarLander-v3 with two minibatch sizes, five test seeds and two million environment steps per run. Settings were chosen on two separate tuning seeds. With minibatch size 64, BA-PPO reaches a final return of $256 \pm 14$, against $241 \pm 17$ for PPO and $167 \pm 60$ for GRPO. With minibatch size 512, BA-PPO is clearly ahead of both. The margin over a tuned PPO is not statistically significant with five seeds, so the strongest claim we can make is about the untuned baseline and about consistency across seeds.
+Proximal Policy Optimization (PPO) estimates the advantage of each action with a learned critic. Group Relative Policy Optimization (GRPO) removes the critic and compares each episode with other episodes that start from the same state. Because GRPO assigns the same score to every step of an episode, its credit assignment is coarse on long tasks. In this work, a method named Blended Advantage PPO (BA-PPO) is proposed, in which the GRPO group score is mixed with the PPO critic-based advantage using an equal weight. The three methods are compared on the LunarLander-v3 task with two minibatch sizes, five test seeds and two million environment steps per run. Hyperparameters were selected on two separate tuning seeds. With a minibatch size of 64, BA-PPO reached a mean final return of $256 \pm 14$, compared with $241 \pm 17$ for PPO and $167 \pm 60$ for GRPO. With a minibatch size of 512, BA-PPO outperformed both baselines by a wide margin. Its advantage over a tuned PPO was not statistically significant with five seeds, so the results are best interpreted as evidence of superiority over untuned baselines and of greater consistency across seeds. An ablation over the blend weight indicates that an equal weighting performs best among the values tested.
 \end{abstract}
 
 \noindent\textbf{Keywords:} reinforcement learning; proximal policy optimization; group relative policy optimization; advantage estimation; credit assignment; LunarLander.
@@ -33,61 +35,49 @@ Proximal Policy Optimization (PPO) judges each action with a learned critic. Gro
 \section{Introduction}
 \label{sec:intro}
 
-An agent that learns from trial and error needs to know which of its actions helped. Reinforcement learning (RL) formalizes this as maximizing long-term reward \cite{sutton2018rl}. Policy-gradient methods do this by nudging a parameterized policy toward actions that turned out better than expected \cite{williams1992reinforce,sutton1999policygradient}. How well they work depends almost entirely on how that ``better than expected'' is estimated.
+Reinforcement learning (RL) addresses the problem of choosing actions that maximize long-term reward through trial and error \cite{sutton2018rl}. Policy-gradient methods solve this problem by adjusting a parameterized policy toward actions that yield better-than-expected outcomes \cite{williams1992reinforce,sutton1999policygradient}. The practical performance of these methods depends largely on how the expectation against which an action is judged is estimated.
 
-Proximal Policy Optimization (PPO) \cite{schulman2017ppo} is the workhorse here. It keeps each update small by clipping the probability ratio, and it estimates advantages with a learned value function (the critic) and generalized advantage estimation (GAE) \cite{schulman2016gae}. The critic is useful, but it is also a second network that can be wrong, and its mistakes feed directly into the policy update.
+Proximal Policy Optimization (PPO) \cite{schulman2017ppo} is among the most widely used policy-gradient methods. It limits the size of each update by clipping the probability ratio between successive policies. Its advantages are estimated with a learned value function, the critic, and with generalized advantage estimation (GAE) \cite{schulman2016gae}. The critic is a second neural network that must itself be trained, and its prediction errors enter the policy update directly.
 
-Group Relative Policy Optimization (GRPO) was introduced in the DeepSeekMath work \cite{shao2024deepseekmath} and became widely known through DeepSeek-R1 \cite{deepseekai2025r1}. It removes the critic altogether. For each prompt it samples a group of answers and rates each answer against the group average. The method is simple, and it needs no value network. Its weakness is that the same episode-level score is given to every step, so the agent cannot tell which moves in a good episode were the useful ones. This matters most on long tasks, and a recent study found that critic-free methods do fall behind PPO on long-horizon control \cite{marquesdeoliveira2025critics}.
+Group Relative Policy Optimization (GRPO) was introduced in the DeepSeekMath study \cite{shao2024deepseekmath} and became widely known through DeepSeek-R1 \cite{deepseekai2025r1}. GRPO dispenses with the critic. For each prompt, a group of responses is sampled, and each response is scored relative to the group mean. The method requires no value network, but it assigns the same episode-level score to every step, so the contribution of individual actions within a successful episode cannot be distinguished. This limitation is likely to matter most on long tasks, and a recent study reports that critic-free methods trail PPO on long-horizon control problems \cite{marquesdeoliveira2025critics}.
 
-That leads to the question this report addresses. Can the episode-level comparison from GRPO and the per-step estimate from the critic be combined, so that the agent gets some benefit from both? We answer it with a method we call Blended Advantage PPO (BA-PPO). Its only change to PPO is the advantage term, so any difference in results can be traced to that change. We test it on LunarLander-v3 under the same budget as PPO and GRPO, and we tune each method on separate seeds before the final runs.
+This study examines whether the episode-level comparison of GRPO and the per-step estimate of the critic can be combined so that both signals contribute to learning. The combined method is termed Blended Advantage PPO (BA-PPO). Its only modification to PPO concerns the advantage term, which allows differences in performance to be attributed to that modification. The method is evaluated on LunarLander-v3 under the same training budget as the two baselines, and each method is tuned on separate seeds before the final runs are executed.
 
-The contributions are as follows. First, we describe BA-PPO, a small extension of PPO that adds a group-relative term to the advantage. Second, we compare the three methods at two minibatch sizes with five test seeds and significance tests, and we tune each method the same way. Third, we report a blend-weight ablation and say plainly where the evidence is weak.
-
-\section{Problem Formulation}
+\subsection{Problem statement}
 \label{sec:problem}
 
-We model the task as a Markov decision process (MDP) $\mathcal{M} = (\mathcal{S}, \mathcal{A}, P, r, \gamma)$. Here $\mathcal{S}$ is the state space, $\mathcal{A}$ the action space, $P(s' \mid s, a)$ the transition probability, $r(s,a)$ the reward, and $\gamma \in [0,1)$ the discount factor. A stochastic policy $\pi_\theta(a \mid s)$ with parameters $\theta$ generates trajectories $\tau = (s_0, a_0, r_0, s_1, \dots, s_T)$. We want to maximize the expected discounted return,
+The task is modeled as a Markov decision process (MDP) $\mathcal{M} = (\mathcal{S}, \mathcal{A}, P, r, \gamma)$, where $\mathcal{S}$ denotes the state space, $\mathcal{A}$ the action space, $P(s' \mid s, a)$ the transition probability, $r(s,a)$ the reward, and $\gamma \in [0,1)$ the discount factor. A stochastic policy $\pi_\theta(a \mid s)$ with parameters $\theta$ generates trajectories $\tau = (s_0, a_0, r_0, s_1, \dots, s_T)$. The objective is to maximize the expected discounted return,
 \begin{equation}
 J(\theta) = \mathbb{E}_{\tau \sim \pi_\theta}\left[\sum_{t=0}^{T} \gamma^t r_t\right].
 \label{eq:objective}
 \end{equation}
-The policy gradient is $\nabla_\theta J(\theta) = \mathbb{E}\left[\sum_t \nabla_\theta \log \pi_\theta(a_t \mid s_t)\, \hat{A}_t\right]$, where $\hat{A}_t$ estimates the advantage $A^{\pi}(s_t, a_t) = Q^{\pi}(s_t, a_t) - V^{\pi}(s_t)$. Any advantage estimate that does not depend on the sampled action keeps this gradient valid. Its quality, meaning its bias and variance, is what separates the methods in this report.
+The policy gradient is $\nabla_\theta J(\theta) = \mathbb{E}\left[\sum_t \nabla_\theta \log \pi_\theta(a_t \mid s_t)\, \hat{A}_t\right]$, where $\hat{A}_t$ is an estimate of the advantage $A^{\pi}(s_t, a_t) = Q^{\pi}(s_t, a_t) - V^{\pi}(s_t)$. An advantage estimate that is independent of the sampled action yields a valid gradient, but its bias and variance determine the efficiency of learning, and these properties distinguish the methods examined here.
 
-Three difficulties make this hard in practice.
+Three difficulties are associated with this problem.
 
-\paragraph{Credit assignment.} On LunarLander the reward for a successful landing arrives at the end of the episode, after many engine firings. Deciding which early firings deserved the credit is the core problem \cite{pignatelli2024credit}.
+\paragraph{Credit assignment.} On LunarLander, the reward for a successful landing arrives at the end of the episode, after many engine firings. Identifying which earlier actions deserve credit for that outcome is the central difficulty \cite{pignatelli2024credit}.
 
-\paragraph{Variance and reliance on a learned estimate.} A single episode is a noisy sample of the return. A critic reduces that noise, but it is learned from the same data, so its errors can push the policy in the wrong direction.
+\paragraph{Variance and dependence on a learned estimate.} A single episode is a noisy sample of the return. A critic reduces this noise, but it is learned from the same data, and its errors can bias the update.
 
-\paragraph{Sensitivity to implementation.} Results depend on details that papers often leave out, such as normalization and minibatch size, and results vary a lot from seed to seed \cite{engstrom2020implementation,henderson2018matters}.
+\paragraph{Sensitivity to implementation.} Reported rankings of methods can depend on details such as normalization and minibatch size, and results vary substantially across random seeds \cite{engstrom2020implementation,henderson2018matters}.
 
-LunarLander-v3 is a concrete instance of this problem. The state $s_t \in \mathbb{R}^8$ contains the lander's horizontal and vertical position and velocity, its angle and angular velocity, and two indicators for whether each leg touches the ground. The action set is $\mathcal{A} = \{0,1,2,3\}$, meaning do nothing, fire the left engine, fire the main engine, or fire the right engine. A soft landing on the pad gives about $+100$, a crash gives $-100$, and each engine firing costs a little. An episode ends when the lander lands, crashes, or leaves the view. A return of 200 or more is the usual threshold for solving the task.
-
-\section{Related Work}
+\subsection{Related work}
 \label{sec:related}
 
-Policy-gradient methods start with REINFORCE \cite{williams1992reinforce}, whose gradient estimate is unbiased but noisy. Sutton et al.\ \cite{sutton1999policygradient} gave the policy-gradient theorem for function approximation. Schulman et al.\ \cite{schulman2015trpo} then limited each update to a trust region, and PPO \cite{schulman2017ppo} replaced the constrained step with a clipped objective that is much simpler to implement. GAE \cite{schulman2016gae} supplies the advantage estimate that PPO uses, with a parameter $\lambda$ that trades bias for variance. Asynchronous actor-critic methods \cite{mnih2016a3c} and off-policy methods such as SAC \cite{haarnoja2018sac} are other routes that many papers compare against. We do not study them here, since our question is about the advantage term of an on-policy method.
+Policy-gradient methods originate with REINFORCE \cite{williams1992reinforce}, whose gradient estimate is unbiased but has high variance. The policy-gradient theorem for function approximation was established by Sutton et al.\ \cite{sutton1999policygradient}. Trust-region methods subsequently constrained each update \cite{schulman2015trpo}, and PPO \cite{schulman2017ppo} replaced the constrained step with a clipped objective that is simpler to implement. GAE \cite{schulman2016gae} provides the advantage estimate used by PPO, and its parameter $\lambda$ controls the trade-off between bias and variance. Asynchronous actor-critic methods \cite{mnih2016a3c} and off-policy methods such as SAC \cite{haarnoja2018sac} constitute other established approaches. They are not examined here, because the present study concerns the advantage term of an on-policy method.
 
-Critic-free methods are newer. GRPO \cite{shao2024deepseekmath} scores each sample against its group, and its use in DeepSeek-R1 \cite{deepseekai2025r1} drew wide attention. Ahmadian et al.\ \cite{ahmadian2024reinforce} showed that a REINFORCE-style estimator with a leave-one-out baseline can match or beat PPO for language-model alignment. Liu et al.\ \cite{liu2025r1zero} studied GRPO's normalization terms and proposed a corrected variant. For classical control, Marques de Oliveira et al.\ \cite{marquesdeoliveira2025critics} found that critic-free methods usually trail PPO on long-horizon tasks, with CartPole as the main exception. Our results are consistent with that picture, and BA-PPO is an attempt to keep the group signal while retaining the critic.
+Critic-free methods are a more recent development. GRPO \cite{shao2024deepseekmath} scores each sample relative to its group, and its use in DeepSeek-R1 \cite{deepseekai2025r1} attracted considerable attention. A REINFORCE-style estimator with a leave-one-out baseline was shown to match or exceed PPO in language-model alignment \cite{ahmadian2024reinforce}. The normalization terms of GRPO were analyzed, and a corrected variant was proposed \cite{liu2025r1zero}. For classical control tasks, critic-free methods were found to trail PPO on long-horizon problems, with CartPole as the principal exception \cite{marquesdeoliveira2025critics}. The results reported here are consistent with that finding, and BA-PPO is evaluated as a means of retaining the group signal while preserving the critic.
 
-Evaluation practice matters too. Henderson et al.\ \cite{henderson2018matters} showed that results can change a great deal across random seeds and recommended significance testing. Agarwal et al.\ \cite{agarwal2021precipice} argued for interval estimates over point estimates from a few runs. Engstrom et al.\ \cite{engstrom2020implementation} showed that implementation details can account for much of the reported difference between PPO and TRPO. We follow these recommendations as closely as the compute budget allows.
+Evaluation practice is also relevant. Results obtained across random seeds can differ considerably, and significance testing is recommended for their interpretation \cite{henderson2018matters}. Interval estimates are preferable to point estimates derived from few runs \cite{agarwal2021precipice}. Implementation details can account for a large share of the reported difference between PPO and TRPO \cite{engstrom2020implementation}. The protocol in this study follows these recommendations within the limits of the available computing budget.
 
-\section{Method}
-\label{sec:method}
+\section{Methods or Algorithms}
+\label{sec:methods}
 
-All three methods share one network design. The actor and the critic each have two hidden layers of 64 units with $\tanh$ activations. The actor outputs a categorical distribution over the four actions. All three methods run the same clipped PPO update. They differ in two ways. The advantage $\hat{A}_t$ is computed differently, and GRPO and BA-PPO sample groups of eight episodes from each start state, while PPO samples single episodes. Keeping the group sampling in BA-PPO means that the ablation at $\alpha = 0$ isolates the advantage term from the sampling. Figure~\ref{fig:architecture} shows the full pipeline of BA-PPO.
+The three methods are training procedures, each of which produces a policy network that maps a state to a probability distribution over actions. The trained policy network is the object that is finally evaluated. The procedures share the same network design and the same clipped update, and they differ in the advantage term and, for the group-based methods, in the sampling of episodes. Table~\ref{tab:methods} summarizes the ingredients of each procedure.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.78\linewidth]{figures/fig_architecture.pdf}
-\caption{The BA-PPO pipeline. Each update collects groups of eight episodes that start from the same seed. The group branch scores each episode against its group. The critic branch gives a per-step GAE estimate. The two signals are blended with weight $\alpha$ and used in one clipped PPO update.}
-\label{fig:architecture}
-\end{figure}
-
-\paragraph{What is a method and what is a model.} The three methods are training recipes. Each one produces the same kind of trained object, a policy network that maps a state to a probability for each action. That network is the model we finally test. A recipe combines a few ingredients: the policy network, possibly a critic network that predicts state values, a formula that scores each action, and an update rule. Table~\ref{tab:methods} lists the ingredients of each method.
 \begin{table}[t]
 \centering
-\caption{The ingredients of the three methods. The update rule is the same clipped objective in all three cases \cite{schulman2017ppo}.}
+\caption{Ingredients of the three training methods. The update rule is the clipped objective of PPO in all three cases \cite{schulman2017ppo}.}
 \label{tab:methods}
 \begin{tabular}{@{}lccl@{}}
 \toprule
@@ -95,52 +85,56 @@ Method & Critic network & Episodes per start state & Advantage formula \\
 \midrule
 PPO \cite{schulman2017ppo} & yes & 1 & GAE \cite{schulman2016gae} \\
 GRPO \cite{shao2024deepseekmath} & no & 8 & group score (Eq.~\ref{eq:grpo}) \\
-BA-PPO (this work) & yes & 8 & blend of group score and GAE (Eq.~\ref{eq:bappo}) \\
+BA-PPO (proposed) & yes & 8 & blend of group score and GAE (Eq.~\ref{eq:bappo}) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Proximal Policy Optimization}
+\label{sec:ppo}
 
-PPO \cite{schulman2017ppo} is the baseline recipe. It trains a policy and a critic together and uses GAE \cite{schulman2016gae} for the advantages. Let $r_t(\theta) = \pi_\theta(a_t \mid s_t) / \pi_{\theta_{\text{old}}}(a_t \mid s_t)$ be the probability ratio between the new and old policies. PPO maximizes
+PPO \cite{schulman2017ppo} is adopted as the baseline procedure. It trains a policy and a critic jointly, and its advantages are computed with GAE \cite{schulman2016gae}. Let $r_t(\theta) = \pi_\theta(a_t \mid s_t) / \pi_{\theta_{\text{old}}}(a_t \mid s_t)$ denote the probability ratio between the current and the previous policy. The clipped surrogate objective is
 \begin{equation}
 L^{\text{clip}}(\theta) = \mathbb{E}_t\left[\min\left(r_t(\theta)\hat{A}_t,\; \text{clip}\left(r_t(\theta), 1-\epsilon, 1+\epsilon\right)\hat{A}_t\right)\right],
 \label{eq:ppo}
 \end{equation}
-with $\epsilon = 0.2$. The advantage comes from GAE \cite{schulman2016gae},
+where $\epsilon = 0.2$. The advantage is estimated as
 \begin{equation}
 \hat{A}^{\text{GAE}}_t = \sum_{l=0}^{T-t-1} (\gamma\lambda)^l \delta_{t+l}, \qquad \delta_t = r_t + \gamma V(s_{t+1}) - V(s_t),
 \label{eq:gae}
 \end{equation}
-with $\gamma = 0.99$ and $\lambda = 0.95$. The critic is fitted by regression onto the GAE return targets, and the advantages are normalized over the batch before the update.
+with $\gamma = 0.99$ and $\lambda = 0.95$. The critic is fitted by regression onto the GAE return targets, and the advantages are normalized over each batch before the policy update.
 
 \subsection{Group Relative Policy Optimization}
+\label{sec:grpo}
 
-GRPO is the group recipe introduced by Shao et al.\ \cite{shao2024deepseekmath}. It uses a group baseline in place of a critic. For one start state we run $G$ episodes under the same initial conditions. Let $R_i$ be the total reward of episode $i$. Its group score is
+GRPO \cite{shao2024deepseekmath} replaces the critic with a group baseline. For a given start state, $G$ episodes are generated under identical initial conditions. Denoting by $R_i$ the total reward of episode $i$, the group score is
 \begin{equation}
 \hat{A}^{\text{GRPO}}_i = \frac{R_i - \mathrm{mean}(R_1,\dots,R_G)}{\mathrm{std}(R_1,\dots,R_G) + 10^{-8}},
 \label{eq:grpo}
 \end{equation}
-and every step $t$ of episode $i$ uses $\hat{A}_t = \hat{A}^{\text{GRPO}}_i$. We set $G = 8$. There is no value network, so only the policy loss is used. Because the loss averages over steps, longer episodes contribute more steps to each update. This is the length effect that \cite{liu2025r1zero} examine, and we did not change it, so that our GRPO matches the common form.
+and every step $t$ of episode $i$ is assigned $\hat{A}_t = \hat{A}^{\text{GRPO}}_i$. The group size is $G = 8$. As no value network is present, only the policy loss is optimized. The loss is averaged over steps, so longer episodes contribute more steps to each update. This length effect is the subject of the analysis in \cite{liu2025r1zero}. It was retained unchanged so that the implementation corresponds to the standard form of the method.
 
 \subsection{Blended Advantage PPO}
+\label{sec:bappo}
 
-BA-PPO combines the two signals. For step $t$ of episode $i$,
+BA-PPO combines the two advantage signals. For step $t$ of episode $i$, the advantage is
 \begin{equation}
 \hat{A}_t = \alpha\, \hat{A}^{\text{GRPO}}_i + (1-\alpha)\, \widetilde{A}^{\text{GAE}}_t,
 \label{eq:bappo}
 \end{equation}
-where $\widetilde{A}^{\text{GAE}}_t$ is the GAE estimate normalized over the batch and $\alpha = 0.5$. The critic is trained exactly as in PPO. Setting $\alpha = 0$ leaves only the critic term. Setting $\alpha = 1$ leaves only the group term, which is the policy signal GRPO uses.
+where $\widetilde{A}^{\text{GAE}}_t$ denotes the GAE estimate normalized over the batch and $\alpha = 0.5$ is the blend weight. The critic is trained in the same manner as in PPO. Setting $\alpha = 0$ retains only the critic term, while setting $\alpha = 1$ retains only the group term that GRPO employs.
 
-The idea is simple. The group term judges an episode as a whole, so it is hard to fool with a bad critic estimate. The GAE term supplies the per-step credit that the group term lacks. The minor innovation is this blend. In code it is one line on top of PPO, and it keeps all of PPO's stability machinery.
+The motivation is as follows. The group term evaluates an episode as a whole and is therefore insensitive to errors in individual critic estimates. The GAE term supplies the per-step credit that the group term lacks. The proposed modification consists of the blend in Eq.~(\ref{eq:bappo}), which requires one additional line of code relative to PPO and leaves all other components of PPO unchanged. The complete pipeline is shown in Figure~\ref{fig:architecture}.
 
 \subsection{Training settings}
+\label{sec:settings}
 
-Table~\ref{tab:settings} lists the settings shared by all methods. Each update collects about 4,096 environment steps, split into minibatches of 512 or 64. Every run lasted 2 million environment steps.
+Table~\ref{tab:settings} lists the settings that are common to all methods. Each update uses approximately 4,096 environment steps, divided into minibatches of 512 or 64 steps. Every run comprises two million environment steps.
 
 \begin{table}[t]
 \centering
-\caption{Training settings shared by PPO, GRPO and BA-PPO.}
+\caption{Training settings common to PPO, GRPO and BA-PPO.}
 \label{tab:settings}
 \begin{tabular}{@{}ll@{}}
 \toprule
@@ -162,63 +156,58 @@ Total environment steps & $2\times10^{6}$ \\
 \end{tabular}
 \end{table}
 
-\section{Software Architecture and Implementation}
+\section{Software Architecture and Implementation Methods}
 \label{sec:software}
 
-The code is written in Python 3.12. The networks use PyTorch 2.15 on the CPU, the environment is Gymnasium 1.4 with Box2D \cite{towers2024gymnasium,brockman2016gym}, and analysis uses NumPy, SciPy and Matplotlib. Our default settings are close to those of common reference implementations \cite{huang2022cleanrl,raffin2021sb3}. The full project is public at \url{https://github.com/Prolanter/ba-ppo-lunarlander}.
+\subsection{Network design}
+\label{sec:network}
 
-Table~\ref{tab:files} lists the main files. Keeping the three methods in one training file means the only difference between them is the advantage function, so the comparison is clean. Each run also writes a progress file, which a small terminal monitor reads, and TensorBoard logs for the learning curves. The README in the repository gives the exact commands for each result.
+Two separate multilayer perceptrons are used. The actor (policy) network receives the eight-dimensional state vector, passes it through two fully connected hidden layers of 64 units each with hyperbolic-tangent activations, and produces four logits, one per action. The probabilities of the actions are obtained from these logits by a softmax, and an action is sampled from the resulting categorical distribution. The critic network has the same input and hidden layers, but its output is a single scalar, the estimated value of the state. The actor contains 4,996 trainable parameters and the critic 4,801, giving 9,797 in total. The network is deliberately small. Two hidden layers of 64 units with $\tanh$ activations follow the configuration used for PPO on low-dimensional control tasks \cite{schulman2017ppo}, and the state of LunarLander is fully described by eight numbers, so a larger network would add capacity without adding information. The GRPO procedure uses only the actor network, so its trainable parameter count is 4,996. Figure~\ref{fig:architecture} presents the data flow of BA-PPO.
 
-\begin{table}[t]
+\begin{figure}[t]
 \centering
-\caption{Main files in the repository.}
-\label{tab:files}
-\begin{tabular}{@{}ll@{}}
-\toprule
-File & Role \\
-\midrule
-\texttt{ppo\_grpo.py} & Shared training code: networks, rollouts, the three advantages, PPO update \\
-\texttt{experiments/} & One short script per method and minibatch size \\
-\texttt{run\_all.py} & Runs every method over all seeds in parallel \\
-\texttt{tune.py} & Tuning on the separate seeds 100 and 101 \\
-\texttt{analyze.py}, \texttt{stats.py} & Learning curves, result tables and significance tests \\
-\texttt{monitor.py} & Live terminal table of all runs \\
-\texttt{make\_figures.py} & Builds the report figures from the saved results \\
-\bottomrule
-\end{tabular}
-\end{table}
+\includegraphics[width=0.78\linewidth]{figures/fig_architecture.pdf}
+\caption{Data flow of BA-PPO. Each update collects groups of eight episodes that begin from the same seed. The group branch scores each episode relative to its group, and the critic branch provides a per-step GAE estimate. The two signals are combined with weight $\alpha$ and used in a single clipped PPO update.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Training procedure}
+\label{sec:procedure}
+
+Each iteration of BA-PPO proceeds through the following stages. First, groups of eight episodes are generated from randomly drawn start seeds, and the states, actions, log-probabilities, critic values and episode returns are recorded. Second, the group score of each episode is computed according to Eq.~(\ref{eq:grpo}). Third, the GAE estimate of each step is computed from the critic values, and the two estimates are normalized as described in Section~\ref{sec:bappo}. Fourth, the blended advantage of Eq.~(\ref{eq:bappo}) is formed for every step. Fifth, the clipped objective of Eq.~(\ref{eq:ppo}) is optimized with the Adam optimizer over four epochs, using minibatches of the specified size. Sixth, the critic is updated by regression onto the GAE return targets. The procedure then repeats until the step budget is exhausted.
+
+\subsection{Implementation}
+\label{sec:implementation}
+
+All three methods are implemented in a single training module, so that each method differs from the others only in the advantage computation. The default settings are close to those of established reference implementations of PPO \cite{huang2022cleanrl,raffin2021sb3}. Separate scripts select a method and a minibatch size, and a further script executes the full set of seeds in parallel. Every run writes its per-episode returns to a file and logs its progress during training, which allows the learning curves and outcome statistics reported in Section~\ref{sec:results} to be reproduced from the saved results. The code is available at \url{https://github.com/Prolanter/ba-ppo-lunarlander}, and the repository documents the commands required for each result. All runs were executed on a laptop computer with an eight-core processor and 16 GB of memory, with eight runs executing concurrently and two threads assigned to each run.
 
 \section{Data Description}
 \label{sec:data}
 
-No external dataset is used. The data are the interactions between the agent and the simulator, which is LunarLander-v3 from Gymnasium \cite{towers2024gymnasium,brockman2016gym}. The simulator takes a seed, so every run can be reproduced exactly. CartPole-v1 was used only to check that the code runs, and none of its results are reported.
+No external dataset is used. The data consist of the interactions between the agent and the simulator, which is LunarLander-v3 from Gymnasium \cite{towers2024gymnasium}, a successor of the OpenAI Gym interface \cite{brockman2016gym}. The simulator is seeded, so each run can be reproduced exactly. CartPole-v1 was used only to verify that the code executes correctly, and none of its results are reported.
 
-Figure~\ref{fig:env} shows the task. The frames come from a saved BA-PPO agent (seed 2, minibatch 512) trained for 500,000 steps in an early demonstration run. This agent is not one of the 2-million-step results in the tables. The lander starts at the top of the screen with a random push, and it has to slow down and touch down between the flags. The state vector at touchdown is printed under the figure, so each of the eight numbers can be matched to the picture.
+The state is an eight-dimensional vector comprising the horizontal and vertical position of the lander, its horizontal and vertical velocity, its angle and angular velocity, and two Boolean indicators of leg contact with the ground. The action space is discrete, with four actions: no engine firing, firing of the left engine, firing of the main engine, and firing of the right engine. The reward is shaped to favor a controlled descent. A landing on the pad that comes to rest yields approximately $+100$ points, a crash yields $-100$ points, and each engine firing incurs a small penalty. An episode terminates when the lander comes to rest, crashes, or leaves the viewport. A mean return of 200 or more over 100 consecutive episodes is the conventional criterion for solving the task. Figure~\ref{fig:env} displays the task using frames from a saved BA-PPO agent.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figures/fig_environment.pdf}
-\caption{The LunarLander-v3 task, shown with frames from a saved BA-PPO agent: the start, mid-flight, and touchdown. The text under the figure gives the eight state values at touchdown.}
+\caption{The LunarLander-v3 task, shown through frames from a saved BA-PPO agent at the start of an episode, during flight, and at touchdown. The eight state values at touchdown are printed beneath the figure.}
 \label{fig:env}
 \end{figure}
 
-\section{Experimental Design}
-\label{sec:design}
-
-We separate the seeds used for choosing settings from the seeds used for reporting. Tuning used seeds 100 and 101. The test used seeds 0 to 4. Each method was given the same candidate settings: minibatch 512, minibatch 64, and a longer planning horizon ($\gamma = 0.999$, $\lambda = 0.98$). The planning-horizon setting has no effect on GRPO, since GRPO does not use GAE. Its runs reproduced the minibatch-512 results exactly, so we dropped it from GRPO's comparison. For each method, the best setting on the tuning seeds was then run on the test seeds.
-
-Each run is scored by the mean return of its last 100 training episodes. We report mean $\pm$ sample standard deviation across seeds. Comparisons use Welch's $t$-test and the Mann--Whitney $U$ test, both two-sided.
-
-\section{Results}
+\section{Experimental Results}
 \label{sec:results}
 
-\subsection{Tuning}
+This section reports the experimental protocol and the outcomes of the study. Hyperparameters were selected on two tuning seeds (100 and 101), which are distinct from the five test seeds (0 to 4) used for the reported results. Each method was assessed under the same set of candidate settings: a minibatch size of 512, a minibatch size of 64, and a longer planning horizon ($\gamma = 0.999$, $\lambda = 0.98$). The planning horizon has no effect on GRPO, which does not employ GAE; the corresponding GRPO runs reproduced the results at minibatch 512 exactly, and they were therefore excluded from the selection. For each method, the best setting on the tuning seeds was applied to the test seeds. Each run is summarized by the mean return of its last 100 training episodes, and results are reported as the mean and the sample standard deviation over seeds. Pairwise differences are assessed with Welch's $t$-test and the Mann--Whitney $U$ test, both two-sided. Welch's test compares the two means without assuming equal variances. The Mann--Whitney test compares the two samples by rank and makes no assumption about the distribution of the returns. A $p$-value below 0.05 indicates that a difference of the observed size would be unlikely to arise if the two methods performed equally well.
 
-Table~\ref{tab:tuning} shows the tuning results. Minibatch 64 was the best setting for all three methods, so it is the second setting in the main comparison. For GRPO the gap between 512 and 64 is small and within the noise of two seeds.
+\subsection{Hyperparameter selection}
+\label{sec:tuning}
+
+Table~\ref{tab:tuning} reports the outcomes of the selection stage. Minibatch size 64 produced the highest return for all three methods, and it was therefore used as the second setting in the main comparison. The difference between minibatch sizes 512 and 64 for GRPO is small and lies within the variation observed across the two tuning seeds.
 
 \begin{table}[t]
 \centering
-\caption{Tuning results on the separate tuning seeds (100 and 101). Each entry is the mean of the last-100-episode return over the two seeds.}
+\caption{Outcomes of the selection stage on the tuning seeds (100 and 101). Each entry is the mean of the last-100-episode return over the two seeds.}
 \label{tab:tuning}
 \begin{tabular}{@{}lccc@{}}
 \toprule
@@ -232,12 +221,13 @@ BA-PPO & 206 & \textbf{271} & 185 \\
 \end{table}
 
 \subsection{Test results}
+\label{sec:test}
 
-Table~\ref{tab:main} gives the test results. The first three rows use minibatch 512, and the last three use minibatch 64. Figures~\ref{fig:cmp512} and \ref{fig:cmp64} show the same numbers with every seed visible.
+Table~\ref{tab:main} reports the final returns on the test seeds. The first three rows correspond to a minibatch size of 512 and the last three to a minibatch size of 64. Figures~\ref{fig:cmp512} and \ref{fig:cmp64} display the individual seeds, and Figure~\ref{fig:lc} presents the learning curves for both minibatch sizes side by side.
 
 \begin{table}[t]
 \centering
-\caption{Final return on the test seeds 0 to 4 after 2 million steps (mean $\pm$ sample standard deviation). ``Steps to 200'' is the average over the seeds that reached 200.}
+\caption{Final returns on the test seeds 0 to 4 after two million steps (mean $\pm$ sample standard deviation). ``Steps to 200'' is the mean over the seeds that reached a return of 200.}
 \label{tab:main}
 \begin{tabular}{@{}lcccc@{}}
 \toprule
@@ -257,44 +247,43 @@ BA-PPO & 64 & $\mathbf{256 \pm 14}$ & 5 of 5 & \textbf{0.76M} \\
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.62\linewidth]{figures/fig_comparison_mb512.pdf}
-\caption{Final return at minibatch 512 on the five test seeds.}
+\caption{Final returns at a minibatch size of 512 on the five test seeds.}
 \label{fig:cmp512}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.62\linewidth]{figures/fig_comparison_mb64.pdf}
-\caption{Final return at minibatch 64 on the five test seeds.}
+\caption{Final returns at a minibatch size of 64 on the five test seeds.}
 \label{fig:cmp64}
 \end{figure}
-
-Learning curves for each minibatch size are in Figures~\ref{fig:lc512} and \ref{fig:lc64}. Each line is the mean over five seeds, and the shaded band is one standard deviation.
 
 \begin{figure}[t]
 \centering
 \begin{minipage}[t]{0.48\linewidth}
   \centering
   \includegraphics[width=\linewidth]{figures/fig_learning_curves_mb512.pdf}
-  \subcaption{Minibatch 512.}
-  \label{fig:lc512}
+  \par\smallskip
+  {\small Minibatch 512}
 \end{minipage}\hfill
 \begin{minipage}[t]{0.48\linewidth}
   \centering
   \includegraphics[width=\linewidth]{figures/fig_learning_curves_mb64.pdf}
-  \subcaption{Minibatch 64.}
-  \label{fig:lc64}
+  \par\smallskip
+  {\small Minibatch 64}
 \end{minipage}
-\caption{Learning curves for the two minibatch sizes, side by side. Each line is the mean over five test seeds, and the shaded band is one standard deviation.}
+\caption{Learning curves at minibatch sizes 512 (left) and 64 (right). Each line is the mean over five test seeds, and the shaded band denotes one standard deviation.}
 \label{fig:lc}
 \end{figure}
 
-\subsection{Significance tests}
+\subsection{Statistical comparisons}
+\label{sec:stats}
 
-Table~\ref{tab:stats} gives the pairwise tests. The results are clear at minibatch 512. At minibatch 64, the only comparison that reaches conventional significance is BA-PPO against GRPO. BA-PPO's advantage over PPO is real in the means but not in the statistics.
+Table~\ref{tab:stats} reports the pairwise comparisons. At a minibatch size of 512, the differences between BA-PPO and both baselines are statistically significant under both tests. At a minibatch size of 64, the difference between BA-PPO and GRPO reaches conventional significance, whereas the difference between BA-PPO and PPO does not. The mean advantage of BA-PPO over PPO at this setting is therefore not established by the present data.
 
 \begin{table}[t]
 \centering
-\caption{Pairwise comparisons of final returns on the five test seeds.}
+\caption{Pairwise comparisons of final returns on the five test seeds. Positive differences favor the first-named method. Both $p$-values are two-sided.}
 \label{tab:stats}
 \begin{tabular}{@{}lrcc@{}}
 \toprule
@@ -313,41 +302,43 @@ GRPO vs PPO & $-74$ & 0.049 & 0.095 \\
 \end{tabular}
 \end{table}
 
-\subsection{How episodes end}
+\subsection{Termination of episodes}
+\label{sec:outcomes}
 
-Final returns hide something useful, which is how the lander ends each episode. Figures~\ref{fig:out512} and \ref{fig:out64} split every training episode into landed, crashed, and other endings (a time limit or leaving the view) for each method, pooled over the five test seeds. A method can have a high average return while still crashing often, so this view is a useful check.
+The mean return does not reveal how individual episodes end. Figures~\ref{fig:out512} and \ref{fig:out64} partition all training episodes of the five test seeds into landings, crashes, and other terminations, which comprise time-limit terminations and departures from the viewport. A method may achieve a high average return while still crashing frequently, and the partition makes such behavior visible.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.82\linewidth]{figures/fig_outcomes_mb512.pdf}
-\caption{How training episodes end at minibatch 512, pooled over the five test seeds.}
+\caption{Termination of training episodes at a minibatch size of 512, pooled over the five test seeds.}
 \label{fig:out512}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.82\linewidth]{figures/fig_outcomes_mb64.pdf}
-\caption{How training episodes end at minibatch 64, pooled over the five test seeds.}
+\caption{Termination of training episodes at a minibatch size of 64, pooled over the five test seeds.}
 \label{fig:out64}
 \end{figure}
 
-At minibatch 64, BA-PPO lands in 68.6\% of its episodes and crashes in 26.7\%. PPO lands in 62.9\% and crashes in 27.8\%, while GRPO lands in only 39.7\% and crashes in 53.6\%. BA-PPO and PPO crash at about the same rate, so BA-PPO's advantage comes mainly from landing more often. GRPO's high crash rate fits the credit problem we described: when every step of an episode gets the same score, the policy has a harder time learning which engine firings lead to a gentle touchdown.
+At a minibatch size of 64, BA-PPO landed in 68.6\% of its episodes and crashed in 26.7\%. PPO landed in 62.9\% and crashed in 27.8\%, and GRPO landed in 39.7\% and crashed in 53.6\%. The crash rates of BA-PPO and PPO are nearly identical, so the advantage of BA-PPO arises mainly from a higher landing rate. The high crash rate of GRPO is consistent with the credit-assignment difficulty described in Section~\ref{sec:problem}: when every step of an episode receives the same score, the policy has difficulty identifying which engine firings produce a controlled touchdown.
 
 \subsection{Blend-weight ablation}
+\label{sec:ablation}
 
-The ablation asks how much each signal contributes. We varied $\alpha$ at minibatch 64 on the tuning seeds, so the test seeds stayed untouched. Figure~\ref{fig:ablation} and Table~\ref{tab:ablation} show the results.
+The ablation examines the contribution of each signal to the blended advantage. The blend weight $\alpha$ was varied at a minibatch size of 64 on the tuning seeds, and the test seeds were not used. Table~\ref{tab:ablation} and Figure~\ref{fig:ablation} present the outcomes.
 
 \begin{table}[t]
 \centering
-\caption{Blend-weight ablation at minibatch 64 on the tuning seeds (100 and 101). Each entry is the mean of the two seeds, with the individual values in brackets.}
+\caption{Blend-weight ablation at a minibatch size of 64 on the tuning seeds (100 and 101). Each entry is the mean of the two seeds, with the individual values in brackets.}
 \label{tab:ablation}
 \begin{tabular}{@{}lcl@{}}
 \toprule
-Blend weight $\alpha$ & Meaning & Mean return [seeds] \\
+Blend weight $\alpha$ & Configuration & Mean return [seeds] \\
 \midrule
 0 & critic (GAE) only, group sampling & 137 [116, 158] \\
 0.25 & mostly critic & 185 [253, 118] \\
-0.5 & equal blend (our choice) & \textbf{271} [276, 265] \\
+0.5 & equal blend (selected) & \textbf{271} [276, 265] \\
 0.75 & mostly group & 205 [262, 148] \\
 0.9 & almost only group & 210 [247, 174] \\
 1.0 & group only, group sampling & 61 [61, 60] \\
@@ -358,27 +349,25 @@ Blend weight $\alpha$ & Meaning & Mean return [seeds] \\
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.72\linewidth]{figures/fig_ablation_alpha.pdf}
-\caption{Final return as a function of the blend weight $\alpha$ (minibatch 64, tuning seeds). The dotted lines show tuned PPO and tuned GRPO at the same minibatch size.}
+\caption{Final return as a function of the blend weight $\alpha$ at a minibatch size of 64 on the tuning seeds. The dotted lines indicate tuned PPO and tuned GRPO at the same minibatch size.}
 \label{fig:ablation}
 \end{figure}
 
-The curve peaks at the equal blend, $\alpha = 0.5$, where the mean is 271. Moving the weight in either direction lowers the score, though the drop is not symmetric. Going to $\alpha = 0.25$ costs about 85 points, and going to $\alpha = 1$ costs about 210. Two results stand out. First, the group term alone ($\alpha = 1$) is the weakest setting, at 61, so the group score cannot replace the critic. Second, the critic term alone with group sampling ($\alpha = 0$) reaches only 137. That is far below single-episode PPO on the same seeds, which scored 251. So the group sampling by itself hurts the critic-based update, and the gain of BA-PPO does not come from sampling alone. The blend is what makes the difference.
+The return peaks at the equal blend ($\alpha = 0.5$), where the mean is 271. Changes of the weight in either direction reduce the return, though not symmetrically. Decreasing $\alpha$ to 0.25 lowers the mean by about 85 points, and increasing it to 1.0 lowers it by about 210 points. The group term alone ($\alpha = 1$) yields the weakest result, at 61, which indicates that the group score cannot substitute for the critic. The critic term alone with group sampling ($\alpha = 0$) yields 137, far below single-episode PPO on the same seeds, which obtained 251. Consequently, group sampling by itself impairs the critic-based update, and the advantage of BA-PPO does not arise from sampling alone. The improvement is attributable to the blend. The ablation is limited to two tuning seeds, so the precise shape of the curve should be regarded as indicative. The values at $\alpha = 0.75$ and $\alpha = 0.9$ are sufficiently close that their order may change with additional seeds.
 
-The ablation has a clear limit: it uses two tuning seeds, so the exact shape of the curve is only a rough guide. The values at $\alpha = 0.75$ and $\alpha = 0.9$ are close enough that their order could change with more seeds.
-
-\section{Discussion}
+\subsection{Discussion}
 \label{sec:discussion}
 
-The results fall into two parts. At minibatch 512, BA-PPO is clearly better than both baselines. The untuned PPO is weak at this setting, and tuning changes its score by more than 150 points. That gap is a reminder that the size of a method's advantage depends on how much effort went into its baseline. At minibatch 64, every method improves, and BA-PPO has the highest mean and the smallest spread. It also reaches the solved score on every seed in the fewest steps on average. Its lead over the tuned PPO is about 15 points, though, and it is not significant with five seeds.
+The results fall into two regimes. At a minibatch size of 512, BA-PPO outperforms both baselines clearly. The untuned PPO performs poorly at this setting, and tuning raises its score by more than 150 points. The magnitude of any reported advantage therefore depends on the effort devoted to the baseline. At a minibatch size of 64, all three methods improve, and BA-PPO attains the highest mean with the smallest spread across seeds. It also reaches the solved criterion on every seed in the fewest steps on average. Its margin over tuned PPO is approximately 15 points, which is not statistically significant with five seeds.
 
-These numbers agree with the earlier finding that critic-free methods lag on long-horizon tasks \cite{marquesdeoliveira2025critics}. Once the baselines are tuned fairly, GRPO trails PPO by a margin that is only just significant with the Welch test ($p = 0.049$). BA-PPO keeps the critic, and the blend clearly does better than either extreme in the runs we have. The current ablation does not yet show which term does most of the work. The endpoints at $\alpha = 0$ and $\alpha = 1$ are the test for that, and we report them as soon as they are available.
+These findings agree with the observation that critic-free methods lag on long-horizon tasks \cite{marquesdeoliveira2025critics}. When both baselines are tuned, GRPO trails PPO by a margin that is only marginally significant ($p = 0.049$ under the Welch test). BA-PPO retains the critic, and the blend performs better than either extreme in the present experiments. The ablation does not yet establish which term contributes more to the gain. The endpoints at $\alpha = 0$ and $\alpha = 1$ are informative in this respect, and they are reported above.
 
-There are real limitations. Five test seeds is a small number, and the interval estimates recommended by Agarwal et al.\ \cite{agarwal2021precipice} would be wider than the standard deviations suggest. The blend weight was tried at only a few values on two tuning seeds. We fixed the learning rate, clipping, number of epochs and entropy weight for every method, so a different choice could change the ranking. We did not vary the GRPO group size, although \cite{marquesdeoliveira2025critics} report that smaller groups can do better. Wall-clock times in our tables are not comparable, since the runs shared one processor. Finally, the returns come from training episodes, so they include the exploration noise that the policy still has.
+Several limitations should be noted. Five test seeds constitute a small sample, and interval estimates \cite{agarwal2021precipice} would be wider than the standard deviations suggest. The blend weight was evaluated at a limited number of values on two tuning seeds. The learning rate, clipping range, number of epochs and entropy coefficient were fixed for all methods, and different choices could alter the ranking. The group size of GRPO was not varied, although smaller groups have been reported to perform better in classical control \cite{marquesdeoliveira2025critics}. Wall-clock times are not directly comparable, because the runs shared a single processor. Finally, the returns are computed from training episodes and therefore include the exploration noise of the stochastic policy.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-We introduced BA-PPO, a small change to PPO that blends the GRPO group score with the critic's per-step advantage. On LunarLander-v3 it beats untuned PPO and GRPO clearly, and at a tuned minibatch size it has the highest mean and the most consistent results, although its lead over tuned PPO is not statistically significant with five seeds. An equal blend weight worked best among the values we tried. Future work should use more seeds and interval estimates, tune the learning rate and blend weight for each method, vary the group size, and test longer-horizon tasks, where the credit-assignment argument for blending should count most.
+A method named BA-PPO has been proposed, in which the GRPO group score is blended with the critic-based advantage of PPO. On LunarLander-v3, BA-PPO outperforms untuned PPO and GRPO by a wide margin, and at a tuned minibatch size of 64 it attains the highest mean return and the most consistent results. Its margin over tuned PPO is not statistically significant with five seeds. An equal blend weight performed best among the values examined. Future work should employ a larger number of seeds with interval estimates, tune the learning rate and blend weight for each method, vary the group size, and evaluate longer-horizon tasks, in which the credit-assignment argument for blending is expected to be most relevant.
 
 \bibliographystyle{ieeetr}
 \bibliography{references}
