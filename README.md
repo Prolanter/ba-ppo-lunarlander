@@ -130,4 +130,4 @@ Each update collects about 4,096 environment steps. Those steps are split into m
 
 - **PPO:** the advantage is GAE with λ = 0.95 and γ = 0.99, normalized over the batch.
 - **GRPO:** each start state is played 8 times, and each episode's total return is normalized within its group. Every step of an episode gets that episode's score.
-- **BA-PPO:** advantage = 0.5 × (GRPO group score) + 0.5 × (normalized GAE). The GRPO term is batch-normalized as well.
+- **BA-PPO:** advantage = 0.5 × (GRPO group score) + 0.5 × (GAE advantage, normalized over the batch). The GRPO score is already normalized within each group.

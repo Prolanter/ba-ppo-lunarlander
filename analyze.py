@@ -62,7 +62,7 @@ def main():
             steps = np.array([s for s, _ in r["episodes"]])
             sm = moving_avg([x for _, x in r["episodes"]])
             curves.append(np.interp(grid, steps, sm))
-            finals.append(sm[steps <= grid_max][-1])
+            finals.append(sm[-1])  # mean of each run's last 100 episodes (same as stats.py)
             hit = np.where(sm >= solved)[0]
             to_solve.append(steps[hit[0]] if len(hit) else None)
             times.append(r["wall_time"] / 60)
@@ -74,7 +74,7 @@ def main():
         reached = [s for s in to_solve if s is not None]
         solve_txt = (f"{np.mean(reached):,.0f} ({len(reached)}/{len(runs)} seeds)"
                      if reached else f"not reached (0/{len(runs)})")
-        rows.append(f"| {label} | {np.mean(finals):.1f} ± {np.std(finals):.1f} | "
+        rows.append(f"| {label} | {np.mean(finals):.1f} ± {np.std(finals, ddof=1):.1f} | "
                     f"{solve_txt} | {np.mean(times):.1f} |")
 
     ax.axhline(solved, color="#888780", linestyle="--", linewidth=1)
