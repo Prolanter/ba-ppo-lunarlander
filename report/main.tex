@@ -84,8 +84,7 @@ All three methods share one network design. The actor and the critic each have t
 \label{fig:architecture}
 \end{figure}
 
-\paragraph{What is a method and what is a model.} The three methods are training recipes. Each one produces the same kind of trained object, a policy network that maps a state to a probability for each action. That network is the model we finally test. A recipe combines a few ingredients: the policy network, possibly a critic network that predicts state values, a formula that scores each action, and an update rule. Table~\ref{tab:methods} lists the ingredients of each method. The formulas themselves are not models. GAE and the group score are calculations that turn rewards into advantage values, and the critic is the only learned predictor besides the policy.
-
+\paragraph{What is a method and what is a model.} The three methods are training recipes. Each one produces the same kind of trained object, a policy network that maps a state to a probability for each action. That network is the model we finally test. A recipe combines a few ingredients: the policy network, possibly a critic network that predicts state values, a formula that scores each action, and an update rule. Table~\ref{tab:methods} lists the ingredients of each method.
 \begin{table}[t]
 \centering
 \caption{The ingredients of the three methods. The update rule is the same clipped objective in all three cases \cite{schulman2017ppo}.}
