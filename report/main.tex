@@ -31,7 +31,7 @@
 Proximal Policy Optimization (PPO) estimates the advantage of each action with a learned critic. Group Relative Policy Optimization (GRPO) removes the critic and compares each episode with other episodes that start from the same state. Because GRPO assigns the same score to every step of an episode, its credit assignment is coarse on long tasks. In this work, a method named Blended Advantage PPO (BA-PPO) is proposed, in which the GRPO group score is mixed with the PPO critic-based advantage using an equal weight. The three methods are compared on the LunarLander-v3 task with two minibatch sizes, five test seeds and two million environment steps per run. Hyperparameters were selected on two separate tuning seeds. With a minibatch size of 64, BA-PPO reached a mean final return of $256 \pm 14$, compared with $241 \pm 17$ for PPO and $167 \pm 60$ for GRPO. With a minibatch size of 512, BA-PPO outperformed both baselines by a wide margin. Its advantage over a tuned PPO was not statistically significant with five seeds, so the results are best interpreted as evidence of superiority over untuned baselines and of greater consistency across seeds. An ablation over the blend weight indicates that an equal weighting performs best among the values tested.
 \end{abstract}
 
-\noindent\textbf{Keywords:} reinforcement learning; proximal policy optimization; group relative policy optimization; advantage estimation; credit assignment; LunarLander.
+\noindent\textbf{Keywords:} Machine learning; reinforcement learning; proximal policy optimization; group relative policy optimization; advantage estimation; LunarLander.
 
 \section{Introduction}
 \label{sec:intro}
@@ -372,5 +372,8 @@ A method named BA-PPO has been proposed, in which the GRPO group score is blende
 
 \bibliographystyle{ieeetr}
 \bibliography{references}
+
+\vspace{2cm}
+\noindent Signature: \rule{6cm}{0.4pt}
 
 \end{document}
