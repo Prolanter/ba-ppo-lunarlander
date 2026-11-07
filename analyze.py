@@ -85,6 +85,7 @@ def main():
     ax.grid(alpha=0.3)
     fig.tight_layout()
     fig.savefig(f"learning_curves_{env}_{RES_DIR}.png", dpi=150)
+    fig.savefig(f"learning_curves_{env}_{RES_DIR}.pdf")  # vector version for the report
 
     table = ["| Method | Final return (mean ± std) | Steps to reach solved | Wall time (min) |",
              "|---|---|---|---|"] + rows
